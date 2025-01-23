@@ -3,6 +3,7 @@ blueprint:
   description: Automations helper for the Zooz ZEN21 Switch using the Zwave
     JS integration.
   domain: automation
+  source_url: https://github.com/alfredcrager/HomeAssistantBluePrints/blob/main/Zooz/zen21.yaml
   input:
     zooz_zen21:
       name: Zooz ZEN21
@@ -25,13 +26,6 @@ blueprint:
       default: []
       selector:
         action: {}
-    up_3x:
-      name: Top Paddle 3x
-      description: 'Action to run on upper paddle triple tap. Default: Enter
-        inclusion/pairing mode.'
-      default: []
-      selector:
-        action: {}
     up_4x:
       name: Top Paddle 4x
       description: Action to run on upper paddle quadruple tap.
@@ -50,12 +44,6 @@ blueprint:
       default: []
       selector:
         action: {}
-    up_release:
-      name: Top Paddle Release
-      description: Action to run on upper paddle release.
-      default: []
-      selector:
-        action: {}
     down_1x:
       name: Lower Paddle 1x
       description: Action to run on lower paddle single tap.
@@ -65,13 +53,6 @@ blueprint:
     down_2x:
       name: Lower Paddle 2x
       description: Action to run on lower paddle double tap.
-      default: []
-      selector:
-        action: {}
-    down_3x:
-      name: Lower Paddle 3x
-      description: 'Action to run on lower paddle triple tap. Default: Enter
-        exclusion/un-pairing mode.'
       default: []
       selector:
         action: {}
@@ -90,12 +71,6 @@ blueprint:
     down_hold:
       name: Bottom Paddle Hold
       description: Action to run on lower paddle press-and-hold.
-      default: []
-      selector:
-        action: {}
-    down_release:
-      name: Bottom Paddle Release
-      description: Action to run on lower paddle double tap.
       default: []
       selector:
         action: {}
@@ -120,31 +95,30 @@ action:
     name: Press Count
     message: '{{ press_count }}'
 - choose:
-  - conditions: '{{ button_id == "002" and press_count == "KeyPressed" }}'
-    sequence: !input up_1x
-  - conditions: '{{ button_id == "002" and press_count == "KeyPressed2x" }}'
-    sequence: !input up_2x
-  - conditions: '{{ button_id == "002" and press_count == "KeyPressed3x" }}'
-    sequence: !input up_3x
-  - conditions: '{{ button_id == "002" and press_count == "KeyPressed4x" }}'
-    sequence: !input up_4x
-  - conditions: '{{ button_id == "002" and press_count == "KeyPressed5x" }}'
-    sequence: !input up_5x
-  - conditions: '{{ button_id == "002" and press_count == "KeyHeldDown" }}'
-    sequence: !input up_hold
-  - conditions: '{{ button_id == "002" and press_count == "KeyReleased" }}'
-    sequence: !input up_release
-  - conditions: '{{ button_id == "001" and press_count == "KeyPressed" }}'
-    sequence: !input down_1x
-  - conditions: '{{ button_id == "001" and press_count == "KeyPressed2x" }}'
-    sequence: !input down_2x
-  - conditions: '{{ button_id == "001" and press_count == "KeyPressed3x" }}'
-    sequence: !input down_3x
-  - conditions: '{{ button_id == "001" and press_count == "KeyPressed4x" }}'
-    sequence: !input down_4x
-  - conditions: '{{ button_id == "001" and press_count == "KeyPressed5x" }}'
-    sequence: !input down_5x
-  - conditions: '{{ button_id == "001" and press_count == "KeyHeldDown" }}'
-    sequence: !input down_hold
-  - conditions: '{{ button_id == "001" and press_count == "KeyReleased" }}'
-    sequence: !input down_release
+# Depending on Zen21 version, the button Ids can be reversed
+  - conditions: '{{ button_id == "002" }}'
+    sequence:
+    - choose:
+      - conditions: '{{ press_count == "KeyPressed" }}'
+        sequence: !input up_1x
+      - conditions: '{{ press_count == "KeyPressed2x" }}'
+        sequence: !input up_2x
+      - conditions: '{{ press_count == "KeyPressed4x" }}'
+        sequence: !input up_4x
+      - conditions: '{{ press_count == "KeyPressed5x" }}'
+        sequence: !input up_5x
+      - conditions: '{{ press_count == "KeyHeldDown" }}'
+        sequence: !input up_hold
+  - conditions: '{{ button_id == "001" }}'
+    sequence:
+    - choose:
+      - conditions: '{{ press_count == "KeyPressed" }}'
+        sequence: !input down_1x
+      - conditions: '{{ press_count == "KeyPressed2x" }}'
+        sequence: !input down_2x
+      - conditions: '{{ press_count == "KeyPressed4x" }}'
+        sequence: !input down_4x
+      - conditions: '{{ press_count == "KeyPressed5x" }}'
+        sequence: !input down_5x
+      - conditions: '{{ press_count == "KeyHeldDown" }}'
+        sequence: !input down_hold
