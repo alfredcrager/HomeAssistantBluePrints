@@ -1,0 +1,150 @@
+blueprint:
+  name: Zooz ZEN21
+  description: Automations helper for the Zooz ZEN21 Switch using the Zwave
+    JS integration.
+  domain: automation
+  input:
+    zooz_zen21:
+      name: Zooz ZEN21
+      description: The ZEN21 Switch to interact with.
+      selector:
+        device:
+          integration: zwave_js
+          manufacturer: Zooz
+          model: ZEN21
+          multiple: true
+    up_1x:
+      name: Top Paddle 1x
+      description: Action to run on upper paddle single tap.
+      default: []
+      selector:
+        action: {}
+    up_2x:
+      name: Top Paddle 2x
+      description: Action to run on upper paddle double tap.
+      default: []
+      selector:
+        action: {}
+    up_3x:
+      name: Top Paddle 3x
+      description: 'Action to run on upper paddle triple tap. Default: Enter
+        inclusion/pairing mode.'
+      default: []
+      selector:
+        action: {}
+    up_4x:
+      name: Top Paddle 4x
+      description: Action to run on upper paddle quadruple tap.
+      default: []
+      selector:
+        action: {}
+    up_5x:
+      name: Top Paddle 5x
+      description: Action to run on upper paddle quintuple tap.
+      default: []
+      selector:
+        action: {}
+    up_hold:
+      name: Top Paddle Hold
+      description: Action to run on upper paddle press-and-hold.
+      default: []
+      selector:
+        action: {}
+    up_release:
+      name: Top Paddle Release
+      description: Action to run on upper paddle release.
+      default: []
+      selector:
+        action: {}
+    down_1x:
+      name: Lower Paddle 1x
+      description: Action to run on lower paddle single tap.
+      default: []
+      selector:
+        action: {}
+    down_2x:
+      name: Lower Paddle 2x
+      description: Action to run on lower paddle double tap.
+      default: []
+      selector:
+        action: {}
+    down_3x:
+      name: Lower Paddle 3x
+      description: 'Action to run on lower paddle triple tap. Default: Enter
+        exclusion/un-pairing mode.'
+      default: []
+      selector:
+        action: {}
+    down_4x:
+      name: Lower Paddle 4x
+      description: Action to run on lower paddle quadruple tap.
+      default: []
+      selector:
+        action: {}
+    down_5x:
+      name: Lower Paddle 5x
+      description: Action to run on lower paddle quintuple tap.
+      default: []
+      selector:
+        action: {}
+    down_hold:
+      name: Bottom Paddle Hold
+      description: Action to run on lower paddle press-and-hold.
+      default: []
+      selector:
+        action: {}
+    down_release:
+      name: Bottom Paddle Release
+      description: Action to run on lower paddle double tap.
+      default: []
+      selector:
+        action: {}
+mode: single
+max_exceeded: silent
+variables:
+  device_id: !input zooz_zen21
+trigger:
+- platform: event
+  event_type: zwave_js_value_notification
+condition: '{{ trigger.event.data.device_id in device_id }}'
+action:
+- variables:
+    button_id: '{{ trigger.event.data.property_key_name }}'
+    press_count: '{{ trigger.event.data.value }}'
+- service: logbook.log
+  data:
+    name: Button Id
+    message: '{{ button_id }}'
+- service: logbook.log
+  data:
+    name: Press Count
+    message: '{{ press_count }}'
+- choose:
+  - conditions: '{{ button_id == "002" and press_count == "KeyPressed" }}'
+    sequence: !input up_1x
+  - conditions: '{{ button_id == "002" and press_count == "KeyPressed2x" }}'
+    sequence: !input up_2x
+  - conditions: '{{ button_id == "002" and press_count == "KeyPressed3x" }}'
+    sequence: !input up_3x
+  - conditions: '{{ button_id == "002" and press_count == "KeyPressed4x" }}'
+    sequence: !input up_4x
+  - conditions: '{{ button_id == "002" and press_count == "KeyPressed5x" }}'
+    sequence: !input up_5x
+  - conditions: '{{ button_id == "002" and press_count == "KeyHeldDown" }}'
+    sequence: !input up_hold
+  - conditions: '{{ button_id == "002" and press_count == "KeyReleased" }}'
+    sequence: !input up_release
+  - conditions: '{{ button_id == "001" and press_count == "KeyPressed" }}'
+    sequence: !input down_1x
+  - conditions: '{{ button_id == "001" and press_count == "KeyPressed2x" }}'
+    sequence: !input down_2x
+  - conditions: '{{ button_id == "001" and press_count == "KeyPressed3x" }}'
+    sequence: !input down_3x
+  - conditions: '{{ button_id == "001" and press_count == "KeyPressed4x" }}'
+    sequence: !input down_4x
+  - conditions: '{{ button_id == "001" and press_count == "KeyPressed5x" }}'
+    sequence: !input down_5x
+  - conditions: '{{ button_id == "001" and press_count == "KeyHeldDown" }}'
+    sequence: !input down_hold
+  - conditions: '{{ button_id == "001" and press_count == "KeyReleased" }}'
+    sequence: !input down_release
