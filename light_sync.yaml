@@ -1,0 +1,32 @@
+blueprint:
+  name: Light Sync
+  description: Sync source light with additional lights
+  domain: automation
+  input:
+    leader_light:
+      name: Leader Light
+      description: The leader light that will control follower lights.
+      selector:
+        entity:
+          filter:
+            - domain: light
+    follower_lights:
+      name: Follower Lights
+      description: The follower lights that will sync with leader light.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: light
+trigger:
+- platform: state
+  entity_id: !input leader_light
+actions:
+  - action: >
+      {% if trigger.to_state.state == "on" %}
+        light.turn_on
+      {% else %}
+        light.turn_off
+      {% endif %}
+    entity_id: !input follower_lights
