@@ -8,7 +8,21 @@ blueprint:
       description: "Prefix used for all entity IDs (e.g., 'palworld' will look for sensor.palworld_active_users, input_text.palworld_webhookurl, etc.)"
       selector:
         text:
+        
+trigger_variables:
+  prefix: !input amp_instance_prefix
 
+trigger:
+  - platform: template
+    value_template: >-
+      {{ states('sensor.' ~ prefix ~ '_active_users') is not none }}
+    id: active_users_change
+
+  - platform: template
+    value_template: >-
+      {{ states('sensor.' ~ prefix ~ '_app_state') is not none }}
+    id: status_change
+    
 variables:
   entity_prefix: !input entity_prefix
   active_users_sensor: "sensor.{{ entity_prefix }}_active_users"
@@ -22,15 +36,15 @@ variables:
   last_webhook_id_entity: "input_text.{{ entity_prefix }}_lastwebhookid"
   last_webhook_timestamp_entity: "input_datetime.{{ entity_prefix }}_lastwebhooktimestamp"
 
-trigger:
-  - trigger: state
-    entity_id:
-      - "{{ active_users_sensor }}"
-    id: Players Changed
-  - trigger: state
-    entity_id:
-      - "{{ app_state_sensor }}"
-    id: Server Status Changed
+#trigger:
+#  - trigger: state
+#    entity_id:
+#      - "{{ active_users_sensor }}"
+#    id: Players Changed
+#  - trigger: state
+#    entity_id:
+#      - "{{ app_state_sensor }}"
+#    id: Server Status Changed
 
 condition:
   - condition: state
