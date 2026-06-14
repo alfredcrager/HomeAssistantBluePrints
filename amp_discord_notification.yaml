@@ -8,7 +8,8 @@ blueprint:
       description: "Prefix used for all entity IDs (e.g., 'palworld' will look for sensor.palworld_active_users, input_text.palworld_webhookurl, etc.)"
       selector:
         text:
-        
+
+# Switched to trigger templates
 trigger_variables:
   prefix: !input entity_prefix
 
