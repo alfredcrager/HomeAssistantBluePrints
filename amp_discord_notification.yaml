@@ -10,7 +10,7 @@ blueprint:
         text:
         
 trigger_variables:
-  prefix: !input amp_instance_prefix
+  prefix: !input entity_prefix
 
 trigger:
   - platform: template
