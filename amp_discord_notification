@@ -1,0 +1,108 @@
+blueprint:
+  name: "AMP - Discord Server Status Notifications"
+  description: "Send Discord notifications for AMP server status changes and player count updates. Supports message creation, updates, and deletion with quiet time scheduling."
+  domain: automation
+  input:
+    entity_prefix:
+      name: "Entity Prefix"
+      description: "Prefix used for all entity IDs (e.g., 'palworld' will look for sensor.palworld_active_users, input_text.palworld_webhookurl, etc.)"
+      selector:
+        text:
+
+variables:
+  entity_prefix: !input entity_prefix
+  active_users_sensor: "sensor.{{ entity_prefix }}_active_users"
+  app_state_sensor: "sensor.{{ entity_prefix }}_app_state"
+  players_sensor: "sensor.{{ entity_prefix }}_players"
+  max_players_sensor: "sensor.{{ entity_prefix }}_max_active_users"
+  wanip_sensor: "sensor.wanip"
+  webhook_url_entity: "input_text.{{ entity_prefix }}_webhookurl"
+  port_entity: "input_text.{{ entity_prefix }}_port"
+  password_entity: "input_text.{{ entity_prefix }}_password"
+  last_webhook_id_entity: "input_text.{{ entity_prefix }}_lastwebhookid"
+  last_webhook_timestamp_entity: "input_datetime.{{ entity_prefix }}_lastwebhooktimestamp"
+
+trigger:
+  - trigger: state
+    entity_id:
+      - "{{ active_users_sensor }}"
+    id: Players Changed
+  - trigger: state
+    entity_id:
+      - "{{ app_state_sensor }}"
+    id: Server Status Changed
+
+condition:
+  - condition: state
+    entity_id: schedule.discord_quiet_time
+    state: "off"
+
+action:
+  - alias: "Check if creating new or updating existing discord message"
+    if:
+      - alias: "There is a webhook ID"
+        condition: template
+        value_template: "{{ (states(last_webhook_id_entity) | default('')) != '' }}"
+      - condition: or
+        conditions:
+          - alias: "Update interval has not passed since last webhook"
+            condition: template
+            value_template: >-
+              {% set last_time = as_timestamp(states(last_webhook_timestamp_entity)) | default(0) | int %}
+              {{ (as_timestamp(now()) - last_time) <= 1800 }}
+          - condition: trigger
+            id:
+              - Server Status Changed
+    then:
+      - alias: "Update discord message"
+        action: rest_command.discord_server_status_notification_update
+        data:
+          webhook_url: "{{ states(webhook_url_entity) }}"
+          ip_address: "{{ states(wanip_sensor) }}"
+          server_status: "{{ states(app_state_sensor) }}"
+          online_player_count: "{{ states(players_sensor) }}"
+          max_player_count: "{{ states(max_players_sensor) }}"
+          online_player_names: "{{ states(active_users_sensor) }}"
+          port: "{{ states(port_entity) }}"
+          password: "{{ states(password_entity) }}"
+    else:
+      - alias: "Delete if there's a previous webhook"
+        if:
+          - alias: "There is a webhook ID"
+            condition: template
+            value_template: "{{ (states(last_webhook_id_entity) | default('')) != '' }}"
+        then:
+          - action: rest_command.discord_server_status_notification_delete
+            data:
+              webhook_url: "{{ states(webhook_url_entity) }}"
+              webhook_id: "{{ states(last_webhook_id_entity) }}"
+      - alias: "Create new discord message"
+        action: rest_command.discord_server_status_notification_create
+        data:
+          webhook_url: "{{ states(webhook_url_entity) }}"
+          ip_address: "{{ states(wanip_sensor) }}"
+          server_status: "{{ states(app_state_sensor) }}"
+          online_player_count: "{{ states(players_sensor) }}"
+          max_player_count: "{{ states(max_players_sensor) }}"
+          online_player_names: "{{ states(active_users_sensor) }}"
+          port: "{{ states(port_entity) }}"
+          password: "{{ states(password_entity) }}"
+        response_variable: discord_response
+      - alias: "Handle successful responses"
+        if:
+          - condition: template
+            value_template: "{{ discord_response['status'] == 200 }}"
+            alias: Successful Reply
+        then:
+          - action: input_datetime.set_datetime
+            data:
+              datetime: "{{ now() }}"
+            target:
+              entity_id: "{{ last_webhook_timestamp_entity }}"
+          - action: input_text.set_value
+            data:
+              value: "{{ discord_response['content']['id'] }}"
+            target:
+              entity_id: "{{ last_webhook_id_entity }}"
+
+mode: single
