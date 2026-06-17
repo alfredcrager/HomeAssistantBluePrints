@@ -153,6 +153,7 @@ actions:
             data:
               webhook_id: "{{ states(last_webhook_id_entity) }}"
               webhook_url: "{{ states(webhook_url_entity) }}"
+              thread_id: "{{ states('input_text.discord_thread_id') }}"
               ip_address: "{{ states.sensor.wanip.state }}"
               server_status: "{{ server_status }}"
               online_player_count: "{{ online_player_count }}"
@@ -161,7 +162,7 @@ actions:
               message: "{{ states(message_entity) }}"
               port: "{{ states(port_entity) }}"
               password: "{{ states(password_entity) }}"
-            response_variable: discord_response
+            response_variable: discord_update_response
         else:
           - alias: Delete if there's a previous webhook
             if:
@@ -175,6 +176,8 @@ actions:
                 data:
                   webhook_id: "{{ states(last_webhook_id_entity) }}"
                   webhook_url: "{{ states(webhook_url_entity) }}"
+                  thread_id: "{{ states('input_text.discord_thread_id') }}"
+                response_variable: discord_delete_response
           - alias: Create new discord message
             action: rest_command.discord_server_status_notification_create
             data:
@@ -188,11 +191,11 @@ actions:
               message: "{{ states(message_entity) }}"
               port: "{{ states(port_entity) }}"
               password: "{{ states(password_entity) }}"
-            response_variable: discord_response
+            response_variable: discord_create_response
           - alias: Handle successful responses
             if:
               - condition: template
-                value_template: "{{ discord_response['status'] == 200 }}"
+                value_template: "{{ discord_create_response['status'] == 200 }}"
                 alias: Successful Reply
             then:
               - action: input_datetime.set_datetime
@@ -204,7 +207,7 @@ actions:
               - action: input_text.set_value
                 metadata: {}
                 data:
-                  value: "{{ discord_response['content']['id'] }}"
+                  value: "{{ discord_create_response['content']['id'] }}"
                 target:
                   entity_id: "{{ last_webhook_id_entity }}"
 
