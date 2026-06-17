@@ -54,7 +54,7 @@ actions:
               value: >-
                 {{ ("Last event: The server's status has changed to " ~ server_status) }}
             target:
-              entity_id: message_entity
+              entity_id: "{{ message_entity }}"
       - conditions:
           - alias: Event trigger is Player Joined
             condition: template
@@ -66,7 +66,7 @@ actions:
               value: >-
                 {{ ("Last event: " ~ player_joined_name ~ " joined the server!") }}
             target:
-              entity_id: message_entity
+              entity_id: "{{ message_entity }}"
       - conditions:
           - alias: Event trigger is Player Left
             condition: template
@@ -78,7 +78,7 @@ actions:
               value: >-
                 {{ ("Last event: " ~ player_left_name ~ " left the server") }}
             target:
-              entity_id: message_entity
+              entity_id: "{{ message_entity }}"
   - alias: Add players to string
     if:
       - alias: A new player joined
@@ -93,7 +93,7 @@ actions:
             ((states('players_entity')|default(''))|regex_replace(player_joined_name
             ~ ',', '', True)) ~ player_joined_name ~ ',' }}
         target:
-          entity_id: players_entity
+          entity_id: "{{ players_entity }}"
   - alias: Remove players from string
     if:
       - alias: A player left
@@ -108,7 +108,7 @@ actions:
             ((states('players_entity')|default(''))|regex_replace(player_left_name
             ~ ',', '', True)) ~ '' }}
         target:
-          entity_id: players_entity
+          entity_id: "{{ players_entity }}"
   - alias: Reset player string
     if:
       - alias: No players left
@@ -120,7 +120,7 @@ actions:
         data:
           value: ""
         target:
-          entity_id: players_entity
+          entity_id: "{{ players_entity }}"
   - alias: Don't send messages during quiet time
     if:
       - condition: state
@@ -199,13 +199,13 @@ actions:
                 data:
                   datetime: "{{ now() }}"
                 target:
-                  entity_id: last_webhook_timestamp_entity
+                  entity_id: "{{ last_webhook_timestamp_entity }}"
               - action: input_text.set_value
                 metadata: {}
                 data:
                   value: "{{ discord_response['content']['id'] }}"
                 target:
-                  entity_id: last_webhook_id_entity
+                  entity_id: "{{ last_webhook_id_entity }}"
 
 mode: queued
 max: 10
