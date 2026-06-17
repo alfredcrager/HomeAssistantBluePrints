@@ -35,8 +35,8 @@ variables:
   event_type: "{{ trigger.json.event | default('') }}"
   player_joined_name: "{{ trigger.json.player_joined_name | default('') }}"
   player_left_name: "{{ trigger.json.player_left_name | default('') }}"
-  online_player_count: "{{ trigger.json.online_player_count | default('0') }}"
-  max_player_count: "{{ trigger.json.max_player_count | default('0') }}"
+  online_player_count: "{{ trigger.json.online_player_count | default(0) }}"
+  max_player_count: "{{ trigger.json.max_player_count | default(0) }}"
   server_status: "{{ trigger.json.server_status | default('NA') }}"
 
 conditions: []
@@ -90,7 +90,7 @@ actions:
         data:
           value: >-
             {{
-            ((states('players_entity')|default(''))|regex_replace(player_joined_name
+            ((states(players_entity)|default(''))|regex_replace(player_joined_name
             ~ ',', '', True)) ~ player_joined_name ~ ',' }}
         target:
           entity_id: "{{ players_entity }}"
@@ -105,7 +105,7 @@ actions:
         data:
           value: >-
             {{
-            ((states('players_entity')|default(''))|regex_replace(player_left_name
+            ((states(players_entity)|default(''))|regex_replace(player_left_name
             ~ ',', '', True)) ~ '' }}
         target:
           entity_id: "{{ players_entity }}"
@@ -113,7 +113,7 @@ actions:
     if:
       - alias: No players left
         condition: template
-        value_template: "{{ online_player_count == '0' }}"
+        value_template: "{{ online_player_count == 0 }}"
     then:
       - action: input_text.set_value
         metadata: {}
