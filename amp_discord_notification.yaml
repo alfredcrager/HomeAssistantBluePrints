@@ -1,6 +1,6 @@
 blueprint:
   name: "AMP - Discord Server Status Notifications"
-  description: "Send Discord notifications for AMP server status changes and player count updates. Supports message creation, updates, and deletion with quiet time scheduling."
+  description: "Send Discord notifications for AMP server status changes and player count updates. Supports webhook triggers, player tracking, message creation, updates, and deletion with quiet time scheduling."
   domain: automation
   input:
     entity_prefix:
@@ -8,12 +8,24 @@ blueprint:
       description: "Prefix used for all entity IDs (e.g., 'palworld' will look for sensor.palworld_active_users, input_text.palworld_webhookurl, etc.)"
       selector:
         text:
+    webhook_id:
+      name: "Webhook ID"
+      description: "The webhook ID for receiving AMP server events (e.g., 'Palworld-hvcYP2nCoPt587XBtHy')"
+      selector:
+        text:
 
-# Switched to trigger templates
 trigger_variables:
   prefix: !input entity_prefix
 
 trigger:
+  - platform: webhook
+    webhook_id: !input webhook_id
+    allowed_methods:
+      - POST
+      - PUT
+    local_only: false
+    id: webhook_event
+    
   - platform: template
     value_template: >-
       {{ states('sensor.' ~ prefix ~ '_active_users') is not none }}
@@ -28,24 +40,17 @@ variables:
   entity_prefix: !input entity_prefix
   active_users_sensor: "sensor.{{ entity_prefix }}_active_users"
   app_state_sensor: "sensor.{{ entity_prefix }}_app_state"
-  players_sensor: "sensor.{{ entity_prefix }}_players"
+  players_sensor: "input_text.{{ entity_prefix }}_players"
   max_players_sensor: "sensor.{{ entity_prefix }}_max_active_users"
   wanip_sensor: "sensor.wanip"
   webhook_url_entity: "input_text.{{ entity_prefix }}_webhookurl"
   port_entity: "input_text.{{ entity_prefix }}_port"
   password_entity: "input_text.{{ entity_prefix }}_password"
+  message_entity: "input_text.{{ entity_prefix }}_message"
   last_webhook_id_entity: "input_text.{{ entity_prefix }}_lastwebhookid"
   last_webhook_timestamp_entity: "input_datetime.{{ entity_prefix }}_lastwebhooktimestamp"
-
-#trigger:
-#  - trigger: state
-#    entity_id:
-#      - "{{ active_users_sensor }}"
-#    id: Players Changed
-#  - trigger: state
-#    entity_id:
-#      - "{{ app_state_sensor }}"
-#    id: Server Status Changed
+  webhook_json: "{{ trigger.json | default({}) }}"
+  event_type: "{{ webhook_json.get('event', '') }}"
 
 condition:
   - condition: state
@@ -53,6 +58,85 @@ condition:
     state: "off"
 
 action:
+  # Process webhook events
+  - alias: "Handle webhook events"
+    if:
+      - condition: trigger
+        id: webhook_event
+    then:
+      - alias: "Update message based on event type"
+        choose:
+          - conditions:
+              - alias: "Status Change event"
+                condition: template
+                value_template: "{{ event_type == 'Status_Change' }}"
+            sequence:
+              - action: input_text.set_value
+                data:
+                  value: "Last event: The server's status has changed"
+                target:
+                  entity_id: "{{ message_entity }}"
+          - conditions:
+              - alias: "Player Joined event"
+                condition: template
+                value_template: "{{ event_type == 'Player_Joined' }}"
+            sequence:
+              - action: input_text.set_value
+                data:
+                  value: "{{ 'Last event: ' ~ webhook_json.get('player_joined_name', 'Unknown') ~ ' joined the server!' }}"
+                target:
+                  entity_id: "{{ message_entity }}"
+          - conditions:
+              - alias: "Player Left event"
+                condition: template
+                value_template: "{{ event_type == 'Player_Left' }}"
+            sequence:
+              - action: input_text.set_value
+                data:
+                  value: "{{ 'Last event: ' ~ webhook_json.get('player_left_name', 'Unknown') ~ ' left the server' }}"
+                target:
+                  entity_id: "{{ message_entity }}"
+      
+      - alias: "Add players to string when they join"
+        if:
+          - alias: "A new player joined"
+            condition: template
+            value_template: "{{ webhook_json.get('player_joined_name', '') != '' }}"
+        then:
+          - action: input_text.set_value
+            data:
+              value: >-
+                {{
+                ((states(players_sensor) | default('')) | regex_replace(webhook_json.get('player_joined_name', '') ~ ',', '', True)) 
+                ~ webhook_json.get('player_joined_name', '') ~ ','
+                }}
+            target:
+              entity_id: "{{ players_sensor }}"
+      
+      - alias: "Remove players from string when they leave"
+        if:
+          - alias: "A player left"
+            condition: template
+            value_template: "{{ webhook_json.get('player_left_name', '') != '' }}"
+        then:
+          - action: input_text.set_value
+            data:
+              value: "{{ (states(players_sensor) | default('')) | regex_replace(webhook_json.get('player_left_name', '') ~ ',', '', True) }}"
+            target:
+              entity_id: "{{ players_sensor }}"
+      
+      - alias: "Reset player string when no players online"
+        if:
+          - alias: "No players left"
+            condition: template
+            value_template: "{{ webhook_json.get('online_player_count', '0') == '0' }}"
+        then:
+          - action: input_text.set_value
+            data:
+              value: ""
+            target:
+              entity_id: "{{ players_sensor }}"
+
   - alias: "Check if creating new or updating existing discord message"
     if:
       - alias: "There is a webhook ID"
@@ -65,19 +149,20 @@ action:
             value_template: >-
               {% set last_time = as_timestamp(states(last_webhook_timestamp_entity)) | default(0) | int %}
               {{ (as_timestamp(now()) - last_time) <= 1800 }}
-          - condition: trigger
-            id:
-              - Server Status Changed
+          - alias: "Event trigger is Status Change"
+            condition: template
+            value_template: "{{ event_type == 'Status_Change' or trigger.id == 'status_change' }}"
     then:
       - alias: "Update discord message"
         action: rest_command.discord_server_status_notification_update
         data:
           webhook_url: "{{ states(webhook_url_entity) }}"
           ip_address: "{{ states(wanip_sensor) }}"
-          server_status: "{{ states(app_state_sensor) }}"
-          online_player_count: "{{ states(players_sensor) }}"
-          max_player_count: "{{ states(max_players_sensor) }}"
-          online_player_names: "{{ states(active_users_sensor) }}"
+          server_status: "{{ webhook_json.get('server_status') or states(app_state_sensor) }}"
+          online_player_count: "{{ webhook_json.get('online_player_count') or states(players_sensor) }}"
+          max_player_count: "{{ webhook_json.get('max_player_count') or states(max_players_sensor) }}"
+          online_player_names: "{{ states(players_sensor) }}"
+          message: "{{ states(message_entity) | default('') }}"
           port: "{{ states(port_entity) }}"
           password: "{{ states(password_entity) }}"
     else:
@@ -96,10 +181,11 @@ action:
         data:
           webhook_url: "{{ states(webhook_url_entity) }}"
           ip_address: "{{ states(wanip_sensor) }}"
-          server_status: "{{ states(app_state_sensor) }}"
-          online_player_count: "{{ states(players_sensor) }}"
-          max_player_count: "{{ states(max_players_sensor) }}"
-          online_player_names: "{{ states(active_users_sensor) }}"
+          server_status: "{{ webhook_json.get('server_status') or states(app_state_sensor) }}"
+          online_player_count: "{{ webhook_json.get('online_player_count') or states(players_sensor) }}"
+          max_player_count: "{{ webhook_json.get('max_player_count') or states(max_players_sensor) }}"
+          online_player_names: "{{ states(players_sensor) }}"
+          message: "{{ states(message_entity) | default('') }}"
           port: "{{ states(port_entity) }}"
           password: "{{ states(password_entity) }}"
         response_variable: discord_response
