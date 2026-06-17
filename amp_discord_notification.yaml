@@ -178,8 +178,8 @@ actions:
           - alias: Create new discord message
             action: rest_command.discord_server_status_notification_create
             data:
-              webhook_url: "{{ states(webhook_url_entity)}}"
-              thread_id: "{{ states.input_text.discord_thread_id }}"
+              webhook_url: "{{ states(webhook_url_entity) }}"
+              thread_id: "{{ states('input_text.discord_thread_id') }}"
               ip_address: "{{ states.sensor.wanip.state }}"
               server_status: "{{ server_status }}"
               online_player_count: "{{ online_player_count }}"
