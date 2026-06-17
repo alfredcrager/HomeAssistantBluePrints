@@ -133,7 +133,7 @@ actions:
           - alias: There is a webhook ID
             condition: template
             value_template: >-
-              {{ (states(last_webhook_id_entity) | default('')) ==
+              {{ (states(last_webhook_id_entity) | default('')) !=
               '' }} 
           - alias: If elapsed time or no previous webhook id
             condition: or
