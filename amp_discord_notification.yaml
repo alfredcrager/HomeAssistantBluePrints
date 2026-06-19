@@ -26,6 +26,7 @@ blueprint:
     server_url:
       name: "Server URL"
       description: "The hosted server URL. If blank, will default to IP"
+      default: states.sensor.wanip.state
       selector:
         text:
     server_port:
@@ -49,7 +50,7 @@ trigger:
     id: webhook_event
     
 variables:
-  server_address: "{{ (!input server_url) | states.sensor.wanip.state }}"
+  server_address: !input server_url
   message_text: ""
   entity_prefix: !input entity_prefix
   players_entity: "input_text.{{ entity_prefix }}_players"
