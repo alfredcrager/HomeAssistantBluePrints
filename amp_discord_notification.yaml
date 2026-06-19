@@ -9,8 +9,33 @@ blueprint:
       selector:
         text:
     webhook_id:
-      name: "Webhook ID"
+      name: "Home Assistant Webhook ID"
       description: "The webhook ID for receiving AMP server events"
+      selector:
+        text:
+    discord_webhook_url:
+      name: "Discord Webhook URL"
+      description: "The Discord webhook URL"
+      selector:
+        text:
+    server_name:
+      name: "Server Name"
+      description: "The hosted server name"
+      selector:
+        text:
+    server_url:
+      name: "Server URL"
+      description: "The hosted server URL. If blank, will default to IP"
+      selector:
+        text:
+    server_port:
+      name: "Server Port"
+      description: "The hosted server port"
+      selector:
+        text:
+    server_password:
+      name: "Server Password"
+      description: "The password required to join the server"
       selector:
         text:
 
@@ -24,11 +49,9 @@ trigger:
     id: webhook_event
     
 variables:
+  server_address: "{{ (!input server_url) | states.sensor.wanip.state }}"
+  message_text: ""
   entity_prefix: !input entity_prefix
-  webhook_url_entity: "input_text.{{ entity_prefix }}_webhookurl"
-  port_entity: "input_text.{{ entity_prefix }}_port"
-  password_entity: "input_text.{{ entity_prefix }}_password"
-  message_entity: "input_text.{{ entity_prefix }}_message"
   players_entity: "input_text.{{ entity_prefix }}_players"
   last_webhook_id_entity: "input_text.{{ entity_prefix }}_lastwebhookid"
   last_webhook_timestamp_entity: "input_datetime.{{ entity_prefix }}_lastwebhooktimestamp"
@@ -48,122 +71,105 @@ actions:
             condition: template
             value_template: "{{ event_type == 'Status_Change' }}"
         sequence:
-          - action: input_text.set_value
-            metadata: {}
-            data:
-              value: >-
-                {{ ("Last event: The server's status has changed to " ~ server_status) }}
-            target:
-              entity_id: "{{ message_entity }}"
+          - alias: Set message text
+            variables:
+              message_text: "Last event: The server's status has changed to {{ server_status }}"
       - conditions:
           - alias: Event trigger is Player Joined
             condition: template
             value_template: "{{ event_type == 'Player_Joined' }}"
         sequence:
+          - alias: Set message text
+            variables:
+              message_text: "Last event: {{ player_joined_name }} joined the server!"
           - action: input_text.set_value
             metadata: {}
             data:
               value: >-
-                {{ ("Last event: " ~ player_joined_name ~ " joined the server!") }}
+                {{
+                ((states(players_entity)|default(''))|regex_replace(player_joined_name
+                ~ ',', '', True)) ~ player_joined_name ~ ',' }}
             target:
-              entity_id: "{{ message_entity }}"
+              entity_id: "{{ players_entity }}"
       - conditions:
           - alias: Event trigger is Player Left
             condition: template
             value_template: "{{ event_type == 'Player_Left' }}"
         sequence:
-          - action: input_text.set_value
-            metadata: {}
-            data:
-              value: >-
-                {{ ("Last event: " ~ player_left_name ~ " left the server") }}
-            target:
-              entity_id: "{{ message_entity }}"
-  - alias: Add players to string
+          - alias: Set message text
+            variables:
+              message_text: "Last event: {{ player_left_name }} left the server"
+          - alias: Reset or remove from player string
+            if:
+              - alias: No players left
+                condition: template
+                value_template: "{{ online_player_count == 0 }}"
+            then:
+              - action: input_text.set_value
+                metadata: {}
+                data:
+                  value: ""
+                target:
+                  entity_id: "{{ players_entity }}"
+            else:
+              - action: input_text.set_value
+                metadata: {}
+                data:
+                  value: >-
+                    {{
+                    ((states(players_entity)|default(''))|regex_replace(player_left_name
+                    ~ ',', '', True)) ~ '' }}
+                target:
+                  entity_id: "{{ players_entity }}"
+  - alias: Check if creating new or updating existing discord message
     if:
-      - alias: A new player joined
+      - alias: There is a webhook ID
         condition: template
-        value_template: "{{ player_joined_name != '' }}"
-    then:
-      - action: input_text.set_value
-        metadata: {}
-        data:
-          value: >-
-            {{
-            ((states(players_entity)|default(''))|regex_replace(player_joined_name
-            ~ ',', '', True)) ~ player_joined_name ~ ',' }}
-        target:
-          entity_id: "{{ players_entity }}"
-  - alias: Remove players from string
-    if:
-      - alias: A player left
-        condition: template
-        value_template: "{{ player_left_name != '' }}"
-    then:
-      - action: input_text.set_value
-        metadata: {}
-        data:
-          value: >-
-            {{
-            ((states(players_entity)|default(''))|regex_replace(player_left_name
-            ~ ',', '', True)) ~ '' }}
-        target:
-          entity_id: "{{ players_entity }}"
-  - alias: Reset player string
-    if:
-      - alias: No players left
-        condition: template
-        value_template: "{{ online_player_count == 0 }}"
-    then:
-      - action: input_text.set_value
-        metadata: {}
-        data:
-          value: ""
-        target:
-          entity_id: "{{ players_entity }}"
-  - alias: Don't send messages during quiet time
-    if:
-      - condition: state
-        entity_id: schedule.discord_quiet_time
-        state:
-          - "off"
-    then:
-      - alias: Check if creating new or updating existing discord message
-        if:
-          - alias: There is a webhook ID
+        value_template: >-
+          {{ (states(last_webhook_id_entity) | default('')) !=
+          '' }} 
+      - alias: If elapsed time or no previous webhook id
+        condition: or
+        conditions:
+          - alias: 30 minutes have not passed since last webhook
             condition: template
             value_template: >-
-              {{ (states(last_webhook_id_entity) | default('')) !=
-              '' }} 
-          - alias: If elapsed time or no previous webhook id
-            condition: or
-            conditions:
-              - alias: 30 minutes have not passed since last webhook
-                condition: template
-                value_template: >-
-                  {{ (as_timestamp(now()) -
-                  (as_timestamp(states(last_webhook_timestamp_entity))
-                  | default(0)) | int <= 1800) }}
-              - alias: Event trigger is Status Change
-                condition: template
-                value_template: "{{ event_type == 'Status_Change' }}"
+              {{ (as_timestamp(now()) -
+              (as_timestamp(states(last_webhook_timestamp_entity))
+              | default(0)) | int <= 1800) }}
+          - alias: Event trigger is Status Change
+            condition: template
+            value_template: "{{ event_type == 'Status_Change' }}"
+          - alias: Quiet time means only updates
+            condition: state
+            entity_id: schedule.discord_quiet_time
+            state:
+              - "on"
+    then:
+      - alias: Update discord message
+        action: rest_command.discord_server_status_notification_update
+        data:
+          webhook_id: "{{ states(last_webhook_id_entity) }}"
+          webhook_url: !input discord_webhook_url
+          thread_id: "{{ states('input_text.discord_thread_id') }}"
+          ip_address: "{{ server_address }}"
+          server_status: "{{ server_status }}"
+          online_player_count: "{{ online_player_count }}"
+          max_player_count: "{{ max_player_count }}"
+          online_player_names: "{{ states(players_entity) }}"
+          message: "{{ message_text }}"
+          server_name: !input server_name
+          port: !input server_port
+          password: !input server_password
+        response_variable: discord_update_response
+    else:
+      - alias: Don't send messages during quiet time
+        if:
+          - condition: state
+            entity_id: schedule.discord_quiet_time
+            state:
+              - "off"
         then:
-          - alias: Update discord message
-            action: rest_command.discord_server_status_notification_update
-            data:
-              webhook_id: "{{ states(last_webhook_id_entity) }}"
-              webhook_url: "{{ states(webhook_url_entity) }}"
-              thread_id: "{{ states('input_text.discord_thread_id') }}"
-              ip_address: "{{ states.sensor.wanip.state }}"
-              server_status: "{{ server_status }}"
-              online_player_count: "{{ online_player_count }}"
-              max_player_count: "{{ max_player_count }}"
-              online_player_names: "{{ states(players_entity) }}"
-              message: "{{ states(message_entity) }}"
-              port: "{{ states(port_entity) }}"
-              password: "{{ states(password_entity) }}"
-            response_variable: discord_update_response
-        else:
           - alias: Delete if there's a previous webhook
             if:
               - alias: There is a webhook ID
@@ -175,22 +181,23 @@ actions:
               - action: rest_command.discord_server_status_notification_delete
                 data:
                   webhook_id: "{{ states(last_webhook_id_entity) }}"
-                  webhook_url: "{{ states(webhook_url_entity) }}"
+                  webhook_url: !input discord_webhook_url
                   thread_id: "{{ states('input_text.discord_thread_id') }}"
                 response_variable: discord_delete_response
           - alias: Create new discord message
             action: rest_command.discord_server_status_notification_create
             data:
-              webhook_url: "{{ states(webhook_url_entity) }}"
+              webhook_url: !input discord_webhook_url
               thread_id: "{{ states('input_text.discord_thread_id') }}"
-              ip_address: "{{ states.sensor.wanip.state }}"
+              ip_address: "{{ server_address }}"
               server_status: "{{ server_status }}"
               online_player_count: "{{ online_player_count }}"
               max_player_count: "{{ max_player_count }}"
               online_player_names: "{{ states(players_entity) }}"
-              message: "{{ states(message_entity) }}"
-              port: "{{ states(port_entity) }}"
-              password: "{{ states(password_entity) }}"
+              message: "{{ message_text }}"
+              server_name: !input server_name
+              port: !input server_port
+              password: !input server_password
             response_variable: discord_create_response
           - alias: Handle successful responses
             if:
