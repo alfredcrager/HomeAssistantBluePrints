@@ -26,7 +26,7 @@ blueprint:
     server_url:
       name: "Server URL"
       description: "The hosted server URL. If blank, will default to IP"
-      default: states.sensor.wanip.state
+      default:
       selector:
         text:
     server_port:
@@ -50,18 +50,19 @@ trigger:
     id: webhook_event
     
 variables:
-  server_address: !input server_url
+  server_url_input: !input server_url
+  server_address: "{{ server_url_input | default(states.sensor.wanip.state, true) }}"
   message_text: ""
   entity_prefix: !input entity_prefix
   players_entity: "input_text.{{ entity_prefix }}_players"
   last_webhook_id_entity: "input_text.{{ entity_prefix }}_lastwebhookid"
   last_webhook_timestamp_entity: "input_datetime.{{ entity_prefix }}_lastwebhooktimestamp"
-  event_type: "{{ trigger.json.event | default('') }}"
-  player_joined_name: "{{ trigger.json.player_joined_name | default('') }}"
-  player_left_name: "{{ trigger.json.player_left_name | default('') }}"
-  online_player_count: "{{ trigger.json.online_player_count | default(0) }}"
-  max_player_count: "{{ trigger.json.max_player_count | default(0) }}"
-  server_status: "{{ trigger.json.server_status | default('NA') }}"
+  event_type: "{{ trigger.json.event | default('', true) }}"
+  player_joined_name: "{{ trigger.json.player_joined_name | default('', true) }}"
+  player_left_name: "{{ trigger.json.player_left_name | default('', true) }}"
+  online_player_count: "{{ trigger.json.online_player_count | default(0, true) }}"
+  max_player_count: "{{ trigger.json.max_player_count | default(0, true) }}"
+  server_status: "{{ trigger.json.server_status | default('NA', true) }}"
 
 conditions: []
 
