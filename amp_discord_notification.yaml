@@ -221,4 +221,4 @@ actions:
                   entity_id: "{{ last_webhook_id_entity }}"
 
 mode: queued
-max: 10
+max: 50
